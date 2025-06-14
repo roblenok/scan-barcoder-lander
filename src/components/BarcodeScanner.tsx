@@ -17,26 +17,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onError }) =>
         const reader = new BrowserMultiFormatReader();
         readerRef.current = reader;
 
-        // Get video devices using navigator.mediaDevices
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
-        console.log('Available video devices:', videoDevices);
-
-        if (videoDevices.length === 0) {
-          throw new Error('No video input devices found');
-        }
-
-        // Prefer back camera if available
-        const backCamera = videoDevices.find(device => 
-          device.label.toLowerCase().includes('back') || 
-          device.label.toLowerCase().includes('rear')
-        );
-        const selectedDeviceId = backCamera ? backCamera.deviceId : videoDevices[0].deviceId;
-
-        console.log('Starting scanner with device:', selectedDeviceId);
+        console.log('Starting barcode scanner...');
 
         await reader.decodeFromVideoDevice(
-          selectedDeviceId,
+          undefined, // Use default camera
           videoRef.current!,
           (result, error) => {
             if (result) {
@@ -58,11 +42,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onError }) =>
 
     return () => {
       if (readerRef.current) {
-        // Stop the stream instead of using reset()
-        const video = videoRef.current;
-        if (video && video.srcObject) {
-          const stream = video.srcObject as MediaStream;
-          stream.getTracks().forEach(track => track.stop());
+        try {
+          readerRef.current.reset();
+        } catch (error) {
+          console.log('Error resetting scanner:', error);
         }
       }
     };
