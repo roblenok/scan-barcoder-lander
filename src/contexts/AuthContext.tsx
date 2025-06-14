@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
-import { useSupabase } from '@/hooks/useSupabase';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -25,7 +25,6 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const { client, isConfigured } = useSupabase();
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -35,40 +34,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    if (!client) {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-      return;
-    }
+    let subscription: any = null;
 
-    // Get initial session
-    client.auth.getSession().then(({ data: { session } }) => {
-      if (isMountedRef.current) {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = client.auth.onAuthStateChange(
-      async (event, session) => {
+    const initializeAuth = async () => {
+      try {
+        // Get initial session
+        const { data: { session } } = await supabase.auth.getSession();
+        
         if (isMountedRef.current) {
           setUser(session?.user ?? null);
           setLoading(false);
         }
+
+        // Listen for auth changes
+        const { data } = supabase.auth.onAuthStateChange(
+          (event, session) => {
+            if (isMountedRef.current) {
+              setUser(session?.user ?? null);
+              setLoading(false);
+            }
+          }
+        );
+        
+        subscription = data.subscription;
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
       }
-    );
+    };
+
+    initializeAuth();
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
-  }, [client]);
+  }, []);
 
   const signIn = async (email: string, password: string) => {
-    if (!client) throw new Error('Supabase not configured');
-    
-    const { error } = await client.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -76,9 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string) => {
-    if (!client) throw new Error('Supabase not configured');
-    
-    const { error } = await client.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -86,9 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    if (!client) throw new Error('Supabase not configured');
-    
-    const { error } = await client.auth.signOut();
+    const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
 
@@ -99,7 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signIn, 
       signUp, 
       signOut, 
-      isSupabaseConfigured: isConfigured 
+      isSupabaseConfigured: true
     }}>
       {children}
     </AuthContext.Provider>

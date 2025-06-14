@@ -1,5 +1,5 @@
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect, useRef } from 'react';
 
 interface SupabaseConfig {
@@ -8,7 +8,6 @@ interface SupabaseConfig {
 }
 
 export const useSupabase = () => {
-  const [client, setClient] = useState<SupabaseClient | null>(null);
   const [config, setConfig] = useState<SupabaseConfig | null>(null);
   const isMountedRef = useRef(true);
 
@@ -19,13 +18,8 @@ export const useSupabase = () => {
       try {
         const parsedConfig = JSON.parse(savedConfig);
         setConfig(parsedConfig);
-        
-        const supabaseClient = createClient(parsedConfig.url, parsedConfig.anonKey);
-        if (isMountedRef.current) {
-          setClient(supabaseClient);
-        }
       } catch (error) {
-        console.error('Failed to create Supabase client:', error);
+        console.error('Failed to parse Supabase config:', error);
       }
     }
 
@@ -41,29 +35,23 @@ export const useSupabase = () => {
     setConfig(newConfig);
     localStorage.setItem('supabaseConfig', JSON.stringify(newConfig));
     
-    try {
-      const supabaseClient = createClient(url, anonKey);
-      if (isMountedRef.current) {
-        setClient(supabaseClient);
-      }
-    } catch (error) {
-      console.error('Failed to create Supabase client:', error);
-    }
+    // Note: In a production app, you'd want to reinitialize the client here
+    // For now, we'll use the static client
   };
 
   const clearConfig = () => {
     if (!isMountedRef.current) return;
     
     setConfig(null);
-    setClient(null);
     localStorage.removeItem('supabaseConfig');
   };
 
+  // Always return the static client to avoid multiple instances
   return {
-    client,
+    client: supabase,
     config,
     updateConfig,
     clearConfig,
-    isConfigured: !!client
+    isConfigured: true // Always true since we have a static client
   };
 };
