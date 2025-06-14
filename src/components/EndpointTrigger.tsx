@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Send, Loader2 } from 'lucide-react';
@@ -20,6 +20,16 @@ interface EndpointTriggerProps {
 
 const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints }) => {
   const [loading, setLoading] = useState<string | null>(null);
+
+  // Auto-send to enabled endpoints when barcode changes
+  useEffect(() => {
+    const enabledEndpoints = endpoints.filter(ep => ep.enabled && ep.url);
+    if (barcode && enabledEndpoints.length > 0) {
+      enabledEndpoints.forEach(endpoint => {
+        triggerEndpoint(endpoint);
+      });
+    }
+  }, [barcode, endpoints]);
 
   const triggerEndpoint = async (endpoint: Endpoint) => {
     if (!endpoint.url) return;
@@ -112,7 +122,7 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
                 ) : (
                   <Send className="w-4 h-4 mr-2" />
                 )}
-                {endpoint.name} ({endpoint.method})
+                Send
               </Button>
             ))}
           </div>
