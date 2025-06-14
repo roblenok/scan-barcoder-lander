@@ -2,20 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Send, Loader2, AlertTriangle } from 'lucide-react';
+import { Send, Loader2, AlertTriangle, Shield } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-
-interface Endpoint {
-  id: string;
-  name: string;
-  url: string;
-  method: 'GET' | 'POST' | 'CURL';
-  enabled: boolean;
-}
+import { type EncryptedEndpoint } from '@/utils/encryption';
 
 interface EndpointTriggerProps {
   barcode: string;
-  endpoints: Endpoint[];
+  endpoints: EncryptedEndpoint[];
 }
 
 const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints }) => {
@@ -29,7 +22,7 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
     }
   }, [barcode, endpoints]);
 
-  const triggerEndpoint = async (endpoint: Endpoint) => {
+  const triggerEndpoint = async (endpoint: EncryptedEndpoint) => {
     if (!endpoint.url) return;
 
     setLoading(endpoint.id);
@@ -102,7 +95,10 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
     <div className="space-y-4">
       <Card className="border-0 shadow-md bg-white/90">
         <CardHeader>
-          <CardTitle className="text-lg">Send to LAMP Endpoints</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="w-5 h-5 text-green-600" />
+            Send to LAMP Endpoints
+          </CardTitle>
           <p className="text-sm text-gray-600">Barcode: {barcode}</p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -129,14 +125,14 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-md bg-amber-50/90">
+      <Card className="border-0 shadow-md bg-green-50/90">
         <CardContent className="p-4">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <Shield className="w-5 h-5 text-green-600 mt-0.5" />
             <div className="text-sm">
-              <p className="font-medium text-amber-800">Security Notice</p>
-              <p className="text-amber-700 mt-1">
-                Requests are sent with no-cors mode for LAMP compatibility. Only send data to trusted endpoints you control.
+              <p className="font-medium text-green-800">Secure & Local</p>
+              <p className="text-green-700 mt-1">
+                Your endpoints are encrypted locally. Requests sent with no-cors mode for LAMP compatibility.
               </p>
             </div>
           </div>

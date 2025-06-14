@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, History, Settings, Globe, Trash2, Zap, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +11,7 @@ import ScanHistory from '@/components/ScanHistory';
 import EndpointConfig from '@/components/EndpointConfig';
 import EndpointTrigger from '@/components/EndpointTrigger';
 import AuthForm from '@/components/AuthForm';
+import { type EncryptedEndpoint } from '@/utils/encryption';
 
 interface Endpoint {
   id: string;
@@ -33,7 +33,7 @@ const Index = () => {
   
   const [isScanning, setIsScanning] = useState(false);
   const [activeTab, setActiveTab] = useState('scan');
-  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [endpoints, setEndpoints] = useState<EncryptedEndpoint[]>([]);
   const [currentBarcode, setCurrentBarcode] = useState<string>('');
   const hasMigratedRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -172,7 +172,7 @@ const Index = () => {
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-gray-600">Your private barcode scanner</p>
+          <p className="text-gray-600">Your private barcode scanner with encrypted endpoints</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
