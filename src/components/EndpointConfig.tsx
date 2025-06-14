@@ -1,14 +1,16 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Save, Trash2, Plus, Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Trash2, Plus, AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSupabase } from '@/hooks/useSupabase';
+import { validateEndpointUrl } from '@/utils/urlValidation';
 
 interface Endpoint {
   id: string;
@@ -24,312 +26,296 @@ interface EndpointConfigProps {
 
 const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
   const { user } = useAuth();
-  const { client } = useSupabase();
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const isMountedRef = useRef(true);
+  const [loading, setLoading] = useState(false);
+  const [urlErrors, setUrlErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (user && client) {
-      loadUserEndpoints();
-    } else {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+    if (user) {
+      loadEndpoints();
     }
-  }, [user, client]);
+  }, [user]);
 
-  const loadUserEndpoints = async () => {
-    if (!client || !isMountedRef.current) return;
-    
+  const loadEndpoints = async () => {
+    if (!user) return;
+
+    setLoading(true);
     try {
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from('user_endpoints')
         .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at');
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
 
-      if (error) throw error;
-
-      if (!isMountedRef.current) return;
-
-      if (data && data.length > 0) {
-        const userEndpoints: Endpoint[] = data.map(ep => ({
-          id: ep.id,
-          name: ep.name,
-          url: ep.url,
-          method: ep.method as 'GET' | 'POST' | 'CURL', // Type cast here
-          enabled: ep.enabled
-        }));
-        setEndpoints(userEndpoints);
-        onSave(userEndpoints);
-      } else {
-        // Initialize with default endpoints for new users
-        const defaultEndpoints: Endpoint[] = Array.from({ length: 6 }, (_, i) => ({
-          id: `endpoint-${Date.now()}-${i}`,
-          name: `Endpoint ${i + 1}`,
-          url: '',
-          method: 'GET' as const,
-          enabled: false
-        }));
-        setEndpoints(defaultEndpoints);
-      }
-    } catch (error) {
-      console.error('Failed to load endpoints:', error);
-      if (isMountedRef.current) {
+      if (error) {
+        console.error('Error loading endpoints:', error);
         toast({
-          title: "Error",
-          description: "Failed to load your endpoints. Please check your Supabase configuration.",
+          title: "Error Loading Endpoints",
+          description: "Failed to load your endpoints.",
           variant: "destructive"
         });
+        return;
       }
+
+      const formattedEndpoints = data.map(item => ({
+        id: item.id,
+        name: item.name,
+        url: item.url,
+        method: item.method as 'GET' | 'POST' | 'CURL',
+        enabled: item.enabled || false
+      }));
+
+      setEndpoints(formattedEndpoints);
+      onSave(formattedEndpoints);
+    } catch (error) {
+      console.error('Error loading endpoints:', error);
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
-  const saveEndpoints = async (newEndpoints: Endpoint[]) => {
-    if (!user || !client || !isMountedRef.current) return;
-    
-    setSaving(true);
-    try {
-      // Delete existing endpoints for this user
-      await client
-        .from('user_endpoints')
-        .delete()
-        .eq('user_id', user.id);
-
-      // Insert new endpoints (only ones with URLs)
-      const endpointsToSave = newEndpoints
-        .filter(ep => ep.url.trim() !== '')
-        .map(ep => ({
-          id: ep.id,
-          user_id: user.id,
-          name: ep.name,
-          url: ep.url,
-          method: ep.method,
-          enabled: ep.enabled
-        }));
-
-      if (endpointsToSave.length > 0) {
-        const { error } = await client
-          .from('user_endpoints')
-          .insert(endpointsToSave);
-
-        if (error) throw error;
-      }
-
-      if (isMountedRef.current) {
-        setEndpoints(newEndpoints);
-        onSave(newEndpoints);
-        toast({
-          title: "Endpoints Saved",
-          description: "Your secure endpoints have been saved successfully.",
-        });
-      }
-    } catch (error) {
-      console.error('Failed to save endpoints:', error);
-      if (isMountedRef.current) {
-        toast({
-          title: "Save Failed",
-          description: "Failed to save your endpoints. Please check your Supabase table setup.",
-          variant: "destructive"
-        });
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setSaving(false);
-      }
-    }
+  const validateUrl = (id: string, url: string) => {
+    const validation = validateEndpointUrl(url);
+    setUrlErrors(prev => ({
+      ...prev,
+      [id]: validation.isValid ? '' : (validation.error || 'Invalid URL')
+    }));
+    return validation.isValid;
   };
 
-  const updateEndpoint = (id: string, updates: Partial<Endpoint>) => {
-    if (!isMountedRef.current) return;
-    
-    const newEndpoints = endpoints.map(ep => 
-      ep.id === id ? { ...ep, ...updates } : ep
-    );
-    saveEndpoints(newEndpoints);
-  };
+  const saveEndpoint = async (endpoint: Endpoint) => {
+    if (!user) return;
 
-  const testEndpoint = async (endpoint: Endpoint) => {
-    if (!endpoint.url) {
-      toast({
-        title: "Invalid URL",
-        description: "Please enter a valid URL for this endpoint.",
-        variant: "destructive"
-      });
+    // Validate URL before saving
+    if (!validateUrl(endpoint.id, endpoint.url)) {
       return;
     }
 
-    const testData = {
-      upc: '123456789012',
-      var: 'test_value',
-      user: 'test_user'
-    };
-
     try {
-      let testUrl = endpoint.url;
-      testUrl = testUrl.replace(/\$upc/g, testData.upc);
-      testUrl = testUrl.replace(/\$var/g, testData.var);
-      testUrl = testUrl.replace(/\$user/g, testData.user);
-
-      const options: RequestInit = {
-        method: endpoint.method === 'CURL' ? 'POST' : endpoint.method,
-        mode: 'no-cors'
-      };
-
-      if (endpoint.method === 'POST' || endpoint.method === 'CURL') {
-        options.headers = {
-          'Content-Type': 'application/json'
-        };
-        options.body = JSON.stringify(testData);
-      }
-
-      await fetch(testUrl, options);
-      
-      if (isMountedRef.current) {
-        toast({
-          title: "Test Successful",
-          description: `Request sent to ${endpoint.name}. Check your LAMP server logs.`,
+      const { error } = await supabase
+        .from('user_endpoints')
+        .upsert({
+          id: endpoint.id === `temp-${Date.now()}` ? undefined : endpoint.id,
+          user_id: user.id,
+          name: endpoint.name,
+          url: endpoint.url,
+          method: endpoint.method,
+          enabled: endpoint.enabled
         });
-      }
-    } catch (error) {
-      console.error('Test failed:', error);
-      if (isMountedRef.current) {
+
+      if (error) {
+        console.error('Error saving endpoint:', error);
         toast({
-          title: "Test Failed",
-          description: "Failed to send test request. Check the URL and try again.",
+          title: "Error Saving Endpoint",
+          description: "Failed to save endpoint configuration.",
           variant: "destructive"
         });
+        return;
       }
+
+      toast({
+        title: "Endpoint Saved",
+        description: "Endpoint configuration has been saved.",
+      });
+
+      // Reload endpoints to get proper IDs
+      await loadEndpoints();
+    } catch (error) {
+      console.error('Error saving endpoint:', error);
+    }
+  };
+
+  const deleteEndpoint = async (id: string) => {
+    if (!user) return;
+
+    if (id.startsWith('temp-')) {
+      // Remove temp endpoint from local state
+      const updatedEndpoints = endpoints.filter(ep => ep.id !== id);
+      setEndpoints(updatedEndpoints);
+      onSave(updatedEndpoints);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_endpoints')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting endpoint:', error);
+        toast({
+          title: "Error Deleting Endpoint",
+          description: "Failed to delete endpoint.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const updatedEndpoints = endpoints.filter(ep => ep.id !== id);
+      setEndpoints(updatedEndpoints);
+      onSave(updatedEndpoints);
+      
+      toast({
+        title: "Endpoint Deleted",
+        description: "Endpoint has been removed.",
+      });
+    } catch (error) {
+      console.error('Error deleting endpoint:', error);
+    }
+  };
+
+  const addEndpoint = () => {
+    const newEndpoint: Endpoint = {
+      id: `temp-${Date.now()}`,
+      name: '',
+      url: '',
+      method: 'GET',
+      enabled: true
+    };
+    setEndpoints([...endpoints, newEndpoint]);
+  };
+
+  const updateEndpoint = (id: string, updates: Partial<Endpoint>) => {
+    const updatedEndpoints = endpoints.map(ep => 
+      ep.id === id ? { ...ep, ...updates } : ep
+    );
+    setEndpoints(updatedEndpoints);
+    onSave(updatedEndpoints);
+
+    // Validate URL if it was updated
+    if (updates.url !== undefined) {
+      validateUrl(id, updates.url);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="w-6 h-6 animate-spin" />
-      </div>
+      <Card className="border-0 shadow-md bg-white/90">
+        <CardContent className="p-6 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-gray-500">Loading endpoints...</p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Your Secure Endpoints</h3>
-        <div className="text-sm text-gray-600 bg-green-50 px-3 py-1 rounded-full">
-          🔒 Your Private Database
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900">LAMP Endpoints</h2>
+        <Button onClick={addEndpoint} size="sm">
+          <Plus className="w-4 h-4 mr-1" />
+          Add Endpoint
+        </Button>
       </div>
 
-      <div className="grid gap-4">
-        {endpoints.map((endpoint) => (
-          <Card key={endpoint.id} className="border-0 shadow-md bg-white/90">
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-base">{endpoint.name}</CardTitle>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">Enabled</label>
-                  <input
-                    type="checkbox"
-                    checked={endpoint.enabled}
-                    onChange={(e) => updateEndpoint(endpoint.id, { enabled: e.target.checked })}
-                    className="rounded"
-                    disabled={saving}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <Label htmlFor={`name-${endpoint.id}`}>Name</Label>
-                <Input
-                  id={`name-${endpoint.id}`}
-                  value={endpoint.name}
-                  onChange={(e) => updateEndpoint(endpoint.id, { name: e.target.value })}
-                  placeholder="Endpoint name"
-                  disabled={saving}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor={`url-${endpoint.id}`}>URL</Label>
-                <Input
-                  id={`url-${endpoint.id}`}
-                  value={endpoint.url}
-                  onChange={(e) => updateEndpoint(endpoint.id, { url: e.target.value })}
-                  placeholder="https://example.com/endpoint.php?upc=$upc&v=$var&user=$user"
-                  className="font-mono text-sm"
-                  disabled={saving}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Use variables: $upc, $var, $user
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label htmlFor={`method-${endpoint.id}`}>Method</Label>
-                  <Select
-                    value={endpoint.method}
-                    onValueChange={(value: 'GET' | 'POST' | 'CURL') => 
-                      updateEndpoint(endpoint.id, { method: value })
-                    }
-                    disabled={saving}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="GET">GET</SelectItem>
-                      <SelectItem value="POST">POST</SelectItem>
-                      <SelectItem value="CURL">CURL</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-end">
+      {endpoints.length === 0 ? (
+        <Card className="border-0 shadow-md bg-white/90">
+          <CardContent className="p-6 text-center">
+            <p className="text-gray-500">No endpoints configured.</p>
+            <p className="text-sm text-gray-400 mt-1">Add an endpoint to send barcode data to your LAMP stack.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {endpoints.map((endpoint) => (
+            <Card key={endpoint.id} className="border-0 shadow-md bg-white/90">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={endpoint.enabled}
+                      onCheckedChange={(enabled) => updateEndpoint(endpoint.id, { enabled })}
+                    />
+                    <span className="text-sm font-medium">
+                      {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
                   <Button
-                    onClick={() => testEndpoint(endpoint)}
+                    onClick={() => deleteEndpoint(endpoint.id)}
                     variant="outline"
                     size="sm"
-                    disabled={!endpoint.url || saving}
+                    className="text-red-600 hover:text-red-700"
                   >
-                    Test
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
-      <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-        <p className="font-medium mb-2">🔒 Your Private LAMP Stack Integration:</p>
-        <ul className="list-disc list-inside space-y-1">
-          <li>Your endpoints are stored in YOUR Supabase database</li>
-          <li>Variables: $upc (barcode), $var (custom value), $user (user identifier)</li>
-          <li>GET: Variables in URL query string</li>
-          <li>POST/CURL: Variables in JSON body</li>
-          <li>Configure your PHP endpoints to handle these variables</li>
-        </ul>
-      </div>
+                <div className="grid gap-3">
+                  <div>
+                    <Label htmlFor={`name-${endpoint.id}`}>Name</Label>
+                    <Input
+                      id={`name-${endpoint.id}`}
+                      value={endpoint.name}
+                      onChange={(e) => updateEndpoint(endpoint.id, { name: e.target.value })}
+                      placeholder="My LAMP Server"
+                    />
+                  </div>
 
-      {saving && (
-        <div className="text-center text-sm text-gray-600">
-          <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
-          Saving to your database...
+                  <div>
+                    <Label htmlFor={`url-${endpoint.id}`}>URL</Label>
+                    <Input
+                      id={`url-${endpoint.id}`}
+                      value={endpoint.url}
+                      onChange={(e) => updateEndpoint(endpoint.id, { url: e.target.value })}
+                      placeholder="https://your-lamp-server.com/api/scan"
+                      className={urlErrors[endpoint.id] ? 'border-red-500' : ''}
+                    />
+                    {urlErrors[endpoint.id] && (
+                      <div className="flex items-center gap-1 mt-1 text-sm text-red-600">
+                        <AlertTriangle className="w-4 h-4" />
+                        {urlErrors[endpoint.id]}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`method-${endpoint.id}`}>Method</Label>
+                    <Select
+                      value={endpoint.method}
+                      onValueChange={(value: 'GET' | 'POST' | 'CURL') => 
+                        updateEndpoint(endpoint.id, { method: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="GET">GET</SelectItem>
+                        <SelectItem value="POST">POST</SelectItem>
+                        <SelectItem value="CURL">CURL</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => saveEndpoint(endpoint)}
+                  className="w-full"
+                  disabled={!endpoint.name || !endpoint.url || !!urlErrors[endpoint.id]}
+                >
+                  Save Endpoint
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
+
+      <Card className="border-0 shadow-md bg-amber-50/90">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium text-amber-800">Security Notice</p>
+              <p className="text-amber-700 mt-1">
+                URLs are validated for security. Private IPs and localhost are blocked to prevent SSRF attacks.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

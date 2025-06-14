@@ -30,6 +30,33 @@ export type Database = {
         }
         Relationships: []
       }
+      scan_history: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          timestamp: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          timestamp?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          timestamp?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_endpoints: {
         Row: {
           created_at: string | null

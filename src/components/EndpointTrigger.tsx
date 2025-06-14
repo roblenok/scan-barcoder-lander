@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface Endpoint {
@@ -99,34 +99,50 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
   }
 
   return (
-    <Card className="border-0 shadow-md bg-white/90">
-      <CardHeader>
-        <CardTitle className="text-lg">Send to LAMP Endpoints</CardTitle>
-        <p className="text-sm text-gray-600">Barcode: {barcode}</p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="grid gap-2">
-            {enabledEndpoints.map((endpoint) => (
-              <Button
-                key={endpoint.id}
-                onClick={() => triggerEndpoint(endpoint)}
-                variant="outline"
-                className="w-full justify-start"
-                disabled={loading !== null}
-              >
-                {loading === endpoint.id ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4 mr-2" />
-                )}
-                Send
-              </Button>
-            ))}
+    <div className="space-y-4">
+      <Card className="border-0 shadow-md bg-white/90">
+        <CardHeader>
+          <CardTitle className="text-lg">Send to LAMP Endpoints</CardTitle>
+          <p className="text-sm text-gray-600">Barcode: {barcode}</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="grid gap-2">
+              {enabledEndpoints.map((endpoint) => (
+                <Button
+                  key={endpoint.id}
+                  onClick={() => triggerEndpoint(endpoint)}
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled={loading !== null}
+                >
+                  {loading === endpoint.id ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 mr-2" />
+                  )}
+                  Send to {endpoint.name}
+                </Button>
+              ))}
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-md bg-amber-50/90">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium text-amber-800">Security Notice</p>
+              <p className="text-amber-700 mt-1">
+                Requests are sent with no-cors mode for LAMP compatibility. Only send data to trusted endpoints you control.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

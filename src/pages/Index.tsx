@@ -1,19 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, History, Settings, Globe, Trash2, Zap, LogOut, Database } from 'lucide-react';
+import { Camera, History, Settings, Globe, Trash2, Zap, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSupabase } from '@/hooks/useSupabase';
+import { useScanHistory } from '@/hooks/useScanHistory';
 import BarcodeScanner from '@/components/BarcodeScanner';
 import ScanHistory from '@/components/ScanHistory';
 import EndpointConfig from '@/components/EndpointConfig';
 import EndpointTrigger from '@/components/EndpointTrigger';
 import AuthForm from '@/components/AuthForm';
-import SupabaseConfig from '@/components/SupabaseConfig';
-import { ScanResult } from '@/types/scan';
 
 interface Endpoint {
   id: string;
@@ -24,13 +22,20 @@ interface Endpoint {
 }
 
 const Index = () => {
-  const { user, loading, signOut, isSupabaseConfigured } = useAuth();
-  const { config, updateConfig } = useSupabase();
+  const { user, loading, signOut } = useAuth();
+  const { 
+    scanHistory, 
+    loading: historyLoading, 
+    addScanResult, 
+    clearHistory, 
+    migrateLocalStorageData 
+  } = useScanHistory();
+  
   const [isScanning, setIsScanning] = useState(false);
-  const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
   const [activeTab, setActiveTab] = useState('scan');
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [currentBarcode, setCurrentBarcode] = useState<string>('');
+  const [hasMigrated, setHasMigrated] = useState(false);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -56,39 +61,22 @@ const Index = () => {
     return <AuthForm />;
   }
 
+  // Migrate localStorage data once when user is loaded
   useEffect(() => {
-    if (!user || !isMountedRef.current) return;
-    
-    // Load user-specific scan history from localStorage
-    const savedHistory = localStorage.getItem(`scanHistory_${user.id}`);
-    if (savedHistory) {
-      try {
-        const parsedHistory = JSON.parse(savedHistory);
-        if (isMountedRef.current) {
-          setScanHistory(parsedHistory);
-        }
-      } catch (error) {
-        console.error('Failed to parse user scan history:', error);
-      }
+    if (user && !hasMigrated && isMountedRef.current) {
+      migrateLocalStorageData();
+      setHasMigrated(true);
     }
-  }, [user]);
+  }, [user, hasMigrated, migrateLocalStorageData]);
 
-  const handleScanResult = (result: string) => {
+  const handleScanResult = async (result: string) => {
     if (!isMountedRef.current || !user) return;
     
     console.log('Scan result:', result);
     setCurrentBarcode(result);
     
-    const newScan: ScanResult = {
-      id: Date.now().toString(),
-      content: result,
-      timestamp: new Date(),
-      type: detectBarcodeType(result)
-    };
-
-    const updatedHistory = [newScan, ...scanHistory];
-    setScanHistory(updatedHistory);
-    localStorage.setItem(`scanHistory_${user.id}`, JSON.stringify(updatedHistory));
+    const detectedType = detectBarcodeType(result);
+    await addScanResult(result, detectedType);
     
     setIsScanning(false);
     setActiveTab('endpoints');
@@ -113,17 +101,6 @@ const Index = () => {
     } else {
       return 'Text';
     }
-  };
-
-  const clearHistory = () => {
-    if (!isMountedRef.current || !user) return;
-    
-    setScanHistory([]);
-    localStorage.removeItem(`scanHistory_${user.id}`);
-    toast({
-      title: "History Cleared",
-      description: "All scan history has been deleted.",
-    });
   };
 
   const copyToClipboard = (text: string) => {
@@ -285,6 +262,7 @@ const Index = () => {
                   variant="outline" 
                   size="sm"
                   className="text-red-600 hover:text-red-700"
+                  disabled={historyLoading}
                 >
                   <Trash2 className="w-4 h-4 mr-1" />
                   Clear
@@ -292,11 +270,20 @@ const Index = () => {
               )}
             </div>
 
-            <ScanHistory 
-              history={scanHistory}
-              onCopy={copyToClipboard}
-              onOpenInBrowser={openInBrowser}
-            />
+            {historyLoading ? (
+              <Card className="border-0 shadow-md bg-white/90">
+                <CardContent className="p-6 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-gray-500">Loading history...</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <ScanHistory 
+                history={scanHistory}
+                onCopy={copyToClipboard}
+                onOpenInBrowser={openInBrowser}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">
