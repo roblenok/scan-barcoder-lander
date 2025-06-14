@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { ScanResult } from '@/types/scan';
@@ -17,14 +17,8 @@ export const useScanHistory = () => {
     };
   }, []);
 
-  // Load scan history from database
-  useEffect(() => {
-    if (!user || !isMountedRef.current) return;
-    
-    loadScanHistory();
-  }, [user]);
-
-  const loadScanHistory = async () => {
+  // Memoize the loadScanHistory function to prevent infinite loops
+  const loadScanHistory = useCallback(async () => {
     if (!user || !isMountedRef.current) return;
     
     setLoading(true);
@@ -61,9 +55,60 @@ export const useScanHistory = () => {
         setLoading(false);
       }
     }
-  };
+  }, [user]);
 
-  const addScanResult = async (result: string, type: string) => {
+  // Memoize the migrateLocalStorageData function
+  const migrateLocalStorageData = useCallback(async () => {
+    if (!user || !isMountedRef.current) return;
+
+    const savedHistory = localStorage.getItem(`scanHistory_${user.id}`);
+    if (!savedHistory) return;
+
+    try {
+      const parsedHistory = JSON.parse(savedHistory);
+      if (!Array.isArray(parsedHistory) || parsedHistory.length === 0) return;
+
+      console.log('Migrating localStorage scan history to database...');
+      
+      const dataToInsert = parsedHistory.map(item => ({
+        user_id: user.id,
+        content: item.content,
+        type: item.type,
+        timestamp: new Date(item.timestamp).toISOString()
+      }));
+
+      const { error } = await supabase
+        .from('scan_history')
+        .insert(dataToInsert);
+
+      if (error) {
+        console.error('Error migrating data:', error);
+        return;
+      }
+
+      // Remove localStorage data after successful migration
+      localStorage.removeItem(`scanHistory_${user.id}`);
+      
+      // Reload data from database
+      await loadScanHistory();
+      
+      toast({
+        title: "Data Migrated",
+        description: "Your scan history has been securely migrated to the database.",
+      });
+    } catch (error) {
+      console.error('Error migrating localStorage data:', error);
+    }
+  }, [user, loadScanHistory]);
+
+  // Load scan history from database
+  useEffect(() => {
+    if (!user || !isMountedRef.current) return;
+    
+    loadScanHistory();
+  }, [user, loadScanHistory]);
+
+  const addScanResult = useCallback(async (result: string, type: string) => {
     if (!user || !isMountedRef.current) return;
 
     const newScan: ScanResult = {
@@ -113,9 +158,9 @@ export const useScanHistory = () => {
       // Revert optimistic update
       setScanHistory(prev => prev.filter(scan => scan.id !== newScan.id));
     }
-  };
+  }, [user]);
 
-  const clearHistory = async () => {
+  const clearHistory = useCallback(async () => {
     if (!user || !isMountedRef.current) return;
 
     try {
@@ -144,50 +189,7 @@ export const useScanHistory = () => {
     } catch (error) {
       console.error('Error clearing history:', error);
     }
-  };
-
-  const migrateLocalStorageData = async () => {
-    if (!user || !isMountedRef.current) return;
-
-    const savedHistory = localStorage.getItem(`scanHistory_${user.id}`);
-    if (!savedHistory) return;
-
-    try {
-      const parsedHistory = JSON.parse(savedHistory);
-      if (!Array.isArray(parsedHistory) || parsedHistory.length === 0) return;
-
-      console.log('Migrating localStorage scan history to database...');
-      
-      const dataToInsert = parsedHistory.map(item => ({
-        user_id: user.id,
-        content: item.content,
-        type: item.type,
-        timestamp: new Date(item.timestamp).toISOString()
-      }));
-
-      const { error } = await supabase
-        .from('scan_history')
-        .insert(dataToInsert);
-
-      if (error) {
-        console.error('Error migrating data:', error);
-        return;
-      }
-
-      // Remove localStorage data after successful migration
-      localStorage.removeItem(`scanHistory_${user.id}`);
-      
-      // Reload data from database
-      await loadScanHistory();
-      
-      toast({
-        title: "Data Migrated",
-        description: "Your scan history has been securely migrated to the database.",
-      });
-    } catch (error) {
-      console.error('Error migrating localStorage data:', error);
-    }
-  };
+  }, [user]);
 
   return {
     scanHistory,
