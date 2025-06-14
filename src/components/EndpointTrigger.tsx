@@ -62,6 +62,9 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
       
       await fetch(url, options);
       
+      // Open endpoint URL in new tab after successful submission
+      window.open(url, '_blank');
+      
       toast({
         title: "Request Sent",
         description: `Successfully sent data to ${endpoint.name}`,
@@ -72,31 +75,6 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         title: "Request Failed",
         description: `Failed to send data to ${endpoint.name}`,
         variant: "destructive"
-      });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const triggerAllEnabled = async () => {
-    const enabledEndpoints = endpoints.filter(ep => ep.enabled && ep.url);
-    
-    if (enabledEndpoints.length === 0) {
-      toast({
-        title: "No Endpoints",
-        description: "No enabled endpoints found. Please configure at least one endpoint.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoading('all');
-    
-    try {
-      await Promise.all(enabledEndpoints.map(endpoint => triggerEndpoint(endpoint)));
-      toast({
-        title: "All Requests Sent",
-        description: `Successfully sent data to ${enabledEndpoints.length} endpoints`,
       });
     } finally {
       setLoading(null);
@@ -145,19 +123,6 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         </div>
 
         <div className="space-y-2">
-          <Button
-            onClick={triggerAllEnabled}
-            className="w-full"
-            disabled={loading !== null}
-          >
-            {loading === 'all' ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4 mr-2" />
-            )}
-            Send to All Enabled Endpoints ({enabledEndpoints.length})
-          </Button>
-
           <div className="grid gap-2">
             {enabledEndpoints.map((endpoint) => (
               <Button
