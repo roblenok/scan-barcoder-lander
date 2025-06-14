@@ -11,16 +11,31 @@ export type Database = {
     Tables: {
       user_endpoints: {
         Row: {
-          created_at: string
-          id: number
+          created_at: string | null
+          enabled: boolean
+          id: string
+          method: string
+          name: string
+          url: string
+          user_id: string | null
         }
         Insert: {
-          created_at?: string
-          id?: number
+          created_at?: string | null
+          enabled?: boolean
+          id: string
+          method: string
+          name: string
+          url: string
+          user_id?: string | null
         }
         Update: {
-          created_at?: string
-          id?: number
+          created_at?: string | null
+          enabled?: boolean
+          id?: string
+          method?: string
+          name?: string
+          url?: string
+          user_id?: string | null
         }
         Relationships: []
       }
