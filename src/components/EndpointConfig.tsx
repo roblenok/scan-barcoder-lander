@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Save, Trash2, Plus, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSupabase } from '@/hooks/useSupabase';
 
 interface Endpoint {
   id: string;
@@ -23,19 +23,24 @@ interface EndpointConfigProps {
 
 const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
   const { user } = useAuth();
+  const { client } = useSupabase();
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user && client) {
       loadUserEndpoints();
+    } else {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, client]);
 
   const loadUserEndpoints = async () => {
+    if (!client) return;
+    
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('user_endpoints')
         .select('*')
         .eq('user_id', user?.id)
@@ -68,7 +73,7 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
       console.error('Failed to load endpoints:', error);
       toast({
         title: "Error",
-        description: "Failed to load your endpoints. Please try again.",
+        description: "Failed to load your endpoints. Please check your Supabase configuration.",
         variant: "destructive"
       });
     } finally {
@@ -77,12 +82,12 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
   };
 
   const saveEndpoints = async (newEndpoints: Endpoint[]) => {
-    if (!user) return;
+    if (!user || !client) return;
     
     setSaving(true);
     try {
       // Delete existing endpoints for this user
-      await supabase
+      await client
         .from('user_endpoints')
         .delete()
         .eq('user_id', user.id);
@@ -100,7 +105,7 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
         }));
 
       if (endpointsToSave.length > 0) {
-        const { error } = await supabase
+        const { error } = await client
           .from('user_endpoints')
           .insert(endpointsToSave);
 
@@ -117,7 +122,7 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
       console.error('Failed to save endpoints:', error);
       toast({
         title: "Save Failed",
-        description: "Failed to save your endpoints. Please try again.",
+        description: "Failed to save your endpoints. Please check your Supabase table setup.",
         variant: "destructive"
       });
     } finally {
@@ -195,7 +200,7 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Your Secure Endpoints</h3>
         <div className="text-sm text-gray-600 bg-green-50 px-3 py-1 rounded-full">
-          🔒 Private & Secure
+          🔒 Your Private Database
         </div>
       </div>
 
@@ -281,9 +286,9 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
       </div>
 
       <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-        <p className="font-medium mb-2">🔒 Secure LAMP Stack Integration:</p>
+        <p className="font-medium mb-2">🔒 Your Private LAMP Stack Integration:</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>Your endpoints are private and secure - only you can see them</li>
+          <li>Your endpoints are stored in YOUR Supabase database</li>
           <li>Variables: $upc (barcode), $var (custom value), $user (user identifier)</li>
           <li>GET: Variables in URL query string</li>
           <li>POST/CURL: Variables in JSON body</li>
@@ -294,7 +299,7 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
       {saving && (
         <div className="text-center text-sm text-gray-600">
           <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
-          Saving your secure endpoints...
+          Saving to your database...
         </div>
       )}
     </div>

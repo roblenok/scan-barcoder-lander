@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, History, Settings, Globe, Trash2, Zap, LogOut } from 'lucide-react';
+import { Camera, History, Settings, Globe, Trash2, Zap, LogOut, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSupabase } from '@/hooks/useSupabase';
 import BarcodeScanner from '@/components/BarcodeScanner';
 import ScanHistory from '@/components/ScanHistory';
 import EndpointConfig from '@/components/EndpointConfig';
 import EndpointTrigger from '@/components/EndpointTrigger';
 import AuthForm from '@/components/AuthForm';
+import SupabaseConfig from '@/components/SupabaseConfig';
 import { ScanResult } from '@/types/scan';
 
 interface Endpoint {
@@ -21,7 +23,8 @@ interface Endpoint {
 }
 
 const Index = () => {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, isSupabaseConfigured } = useAuth();
+  const { config, updateConfig } = useSupabase();
   const [isScanning, setIsScanning] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
   const [activeTab, setActiveTab] = useState('scan');
@@ -35,6 +38,28 @@ const Index = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show Supabase config if not configured
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="container mx-auto px-4 py-6 max-w-md">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mb-4">
+              <Zap className="w-6 h-6 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">LAMP Scanner</h1>
+            <p className="text-gray-600">Setup your private database connection</p>
+          </div>
+          
+          <SupabaseConfig 
+            onConfigSave={updateConfig}
+            currentConfig={config}
+          />
         </div>
       </div>
     );
@@ -169,11 +194,11 @@ const Index = () => {
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-gray-600">Your secure barcode scanner</p>
+          <p className="text-gray-600">Your private barcode scanner</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
+          <TabsList className="grid w-full grid-cols-5 mb-6">
             <TabsTrigger value="scan" className="flex items-center gap-1">
               <Camera className="w-4 h-4" />
               Scan
@@ -189,6 +214,10 @@ const Index = () => {
             <TabsTrigger value="settings" className="flex items-center gap-1">
               <Settings className="w-4 h-4" />
               Config
+            </TabsTrigger>
+            <TabsTrigger value="database" className="flex items-center gap-1">
+              <Database className="w-4 h-4" />
+              DB
             </TabsTrigger>
           </TabsList>
 
@@ -285,6 +314,13 @@ const Index = () => {
 
           <TabsContent value="settings" className="space-y-4">
             <EndpointConfig onSave={setEndpoints} />
+          </TabsContent>
+
+          <TabsContent value="database" className="space-y-4">
+            <SupabaseConfig 
+              onConfigSave={updateConfig}
+              currentConfig={config}
+            />
           </TabsContent>
         </Tabs>
       </div>
