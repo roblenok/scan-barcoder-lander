@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, History, Settings, Globe, Trash2, Zap, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,7 +34,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState('scan');
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [currentBarcode, setCurrentBarcode] = useState<string>('');
-  const [hasMigrated, setHasMigrated] = useState(false);
+  const hasMigratedRef = useRef(false);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -63,11 +62,11 @@ const Index = () => {
 
   // Migrate localStorage data once when user is loaded
   useEffect(() => {
-    if (user && !hasMigrated && isMountedRef.current) {
+    if (user?.id && !hasMigratedRef.current && isMountedRef.current) {
+      hasMigratedRef.current = true;
       migrateLocalStorageData();
-      setHasMigrated(true);
     }
-  }, [user, hasMigrated, migrateLocalStorageData]);
+  }, [user?.id, migrateLocalStorageData]);
 
   const handleScanResult = async (result: string) => {
     if (!isMountedRef.current || !user) return;

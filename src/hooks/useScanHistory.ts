@@ -19,7 +19,7 @@ export const useScanHistory = () => {
 
   // Memoize the loadScanHistory function to prevent infinite loops
   const loadScanHistory = useCallback(async () => {
-    if (!user || !isMountedRef.current) return;
+    if (!user?.id || !isMountedRef.current) return;
     
     setLoading(true);
     try {
@@ -55,11 +55,18 @@ export const useScanHistory = () => {
         setLoading(false);
       }
     }
-  }, [user?.id]); // Only depend on user.id, not the entire user object
+  }, [user?.id]);
+
+  // Load scan history from database - only when user.id changes
+  useEffect(() => {
+    if (user?.id && isMountedRef.current) {
+      loadScanHistory();
+    }
+  }, [user?.id, loadScanHistory]);
 
   // Memoize the migrateLocalStorageData function
   const migrateLocalStorageData = useCallback(async () => {
-    if (!user || !isMountedRef.current) return;
+    if (!user?.id || !isMountedRef.current) return;
 
     const savedHistory = localStorage.getItem(`scanHistory_${user.id}`);
     if (!savedHistory) return;
@@ -99,17 +106,10 @@ export const useScanHistory = () => {
     } catch (error) {
       console.error('Error migrating localStorage data:', error);
     }
-  }, [user?.id, loadScanHistory]); // Properly depend on memoized loadScanHistory
-
-  // Load scan history from database - only when user.id changes
-  useEffect(() => {
-    if (user?.id && isMountedRef.current) {
-      loadScanHistory();
-    }
-  }, [user?.id, loadScanHistory]); // Depend on user.id and memoized loadScanHistory
+  }, [user?.id, loadScanHistory]);
 
   const addScanResult = useCallback(async (result: string, type: string) => {
-    if (!user || !isMountedRef.current) return;
+    if (!user?.id || !isMountedRef.current) return;
 
     const newScan: ScanResult = {
       id: Date.now().toString(), // Temporary ID for optimistic update
@@ -158,10 +158,10 @@ export const useScanHistory = () => {
       // Revert optimistic update
       setScanHistory(prev => prev.filter(scan => scan.id !== newScan.id));
     }
-  }, [user?.id]); // Only depend on user.id
+  }, [user?.id]);
 
   const clearHistory = useCallback(async () => {
-    if (!user || !isMountedRef.current) return;
+    if (!user?.id || !isMountedRef.current) return;
 
     try {
       const { error } = await supabase
@@ -189,7 +189,7 @@ export const useScanHistory = () => {
     } catch (error) {
       console.error('Error clearing history:', error);
     }
-  }, [user?.id]); // Only depend on user.id
+  }, [user?.id]);
 
   return {
     scanHistory,
