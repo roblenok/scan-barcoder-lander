@@ -1,94 +1,72 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, History, Settings, Globe, Trash2, Zap, LogOut } from 'lucide-react';
+import { Camera, History, Settings, Globe, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { useScanHistory } from '@/hooks/useScanHistory';
 import BarcodeScanner from '@/components/BarcodeScanner';
 import ScanHistory from '@/components/ScanHistory';
 import EndpointConfig from '@/components/EndpointConfig';
 import EndpointTrigger from '@/components/EndpointTrigger';
-import AuthForm from '@/components/AuthForm';
 import { type EncryptedEndpoint } from '@/utils/encryption';
 
-interface Endpoint {
-  id: string;
-  name: string;
-  url: string;
-  method: 'GET' | 'POST' | 'CURL';
-  enabled: boolean;
-}
-
 const Index = () => {
-  const { user, loading, signOut } = useAuth();
-  const { 
-    scanHistory, 
-    loading: historyLoading, 
-    addScanResult, 
-    clearHistory, 
-    migrateLocalStorageData 
-  } = useScanHistory();
-  
   const [isScanning, setIsScanning] = useState(false);
   const [activeTab, setActiveTab] = useState('scan');
   const [endpoints, setEndpoints] = useState<EncryptedEndpoint[]>([]);
   const [currentBarcode, setCurrentBarcode] = useState<string>('');
-  const hasMigratedRef = useRef(false);
+  const [scanHistory, setScanHistory] = useState<Array<{id: string, content: string, type: string, timestamp: string}>>([]);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
+    // Load scan history from localStorage
+    const saved = localStorage.getItem('lamp_scanner_history');
+    if (saved) {
+      try {
+        setScanHistory(JSON.parse(saved));
+      } catch (error) {
+        console.error('Error loading scan history:', error);
+      }
+    }
+
     return () => {
       isMountedRef.current = false;
     };
   }, []);
 
-  console.log('Index render - loading:', loading, 'user:', user?.email);
+  const addScanResult = (content: string, type: string) => {
+    const newScan = {
+      id: Date.now().toString(),
+      content,
+      type,
+      timestamp: new Date().toISOString()
+    };
+    
+    const updatedHistory = [newScan, ...scanHistory];
+    setScanHistory(updatedHistory);
+    
+    // Save to localStorage
+    localStorage.setItem('lamp_scanner_history', JSON.stringify(updatedHistory));
+  };
 
-  // Show loading state
-  if (loading) {
-    console.log('Index: showing loading state');
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show auth form if not logged in
-  if (!user) {
-    console.log('Index: no user, showing auth form');
-    return <AuthForm />;
-  }
-
-  console.log('Index: user authenticated, showing main app');
-
-  // Migrate localStorage data once when user is loaded
-  useEffect(() => {
-    if (user?.id && !hasMigratedRef.current && isMountedRef.current) {
-      console.log('Index: starting localStorage migration');
-      hasMigratedRef.current = true;
-      // Use setTimeout to defer the migration to avoid blocking the render
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          migrateLocalStorageData();
-        }
-      }, 100);
-    }
-  }, [user?.id, migrateLocalStorageData]);
+  const clearHistory = () => {
+    setScanHistory([]);
+    localStorage.removeItem('lamp_scanner_history');
+    toast({
+      title: "History Cleared",
+      description: "All scan history has been removed.",
+    });
+  };
 
   const handleScanResult = async (result: string) => {
-    if (!isMountedRef.current || !user) return;
+    if (!isMountedRef.current) return;
     
     console.log('Scan result:', result);
     setCurrentBarcode(result);
     
     const detectedType = detectBarcodeType(result);
-    await addScanResult(result, detectedType);
+    addScanResult(result, detectedType);
     
     setIsScanning(false);
     setActiveTab('endpoints');
@@ -131,46 +109,19 @@ const Index = () => {
     window.open(url, '_blank');
   };
 
-  const handleSignOut = async () => {
-    if (!isMountedRef.current) return;
-    
-    try {
-      await signOut();
-      if (isMountedRef.current) {
-        toast({
-          title: "Signed Out",
-          description: "You have been successfully signed out.",
-        });
-      }
-    } catch (error) {
-      if (isMountedRef.current) {
-        toast({
-          title: "Error",
-          description: "Failed to sign out. Please try again.",
-          variant: "destructive"
-        });
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-6 max-w-md">
-        {/* Header with user info and logout */}
+        {/* Header */}
         <div className="text-center mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full">
-                <Zap className="w-6 h-6 text-white" />
-              </div>
-              <div className="text-left">
-                <h1 className="text-xl font-bold text-gray-900">LAMP Scanner</h1>
-                <p className="text-sm text-gray-600">{user.email}</p>
-              </div>
+          <div className="flex justify-center items-center mb-4">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full">
+              <Zap className="w-6 h-6 text-white" />
             </div>
-            <Button onClick={handleSignOut} variant="outline" size="sm">
-              <LogOut className="w-4 h-4" />
-            </Button>
+            <div className="ml-3">
+              <h1 className="text-xl font-bold text-gray-900">LAMP Scanner</h1>
+              <p className="text-sm text-gray-600">Local Mode</p>
+            </div>
           </div>
           <p className="text-gray-600">Your private barcode scanner with encrypted endpoints</p>
         </div>
@@ -274,7 +225,6 @@ const Index = () => {
                   variant="outline" 
                   size="sm"
                   className="text-red-600 hover:text-red-700"
-                  disabled={historyLoading}
                 >
                   <Trash2 className="w-4 h-4 mr-1" />
                   Clear
@@ -282,20 +232,11 @@ const Index = () => {
               )}
             </div>
 
-            {historyLoading ? (
-              <Card className="border-0 shadow-md bg-white/90">
-                <CardContent className="p-6 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                  <p className="text-gray-500">Loading history...</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <ScanHistory 
-                history={scanHistory}
-                onCopy={copyToClipboard}
-                onOpenInBrowser={openInBrowser}
-              />
-            )}
+            <ScanHistory 
+              history={scanHistory}
+              onCopy={copyToClipboard}
+              onOpenInBrowser={openInBrowser}
+            />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">
