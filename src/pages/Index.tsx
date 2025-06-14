@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, History, Settings, Globe, Trash2, Zap, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -43,8 +44,11 @@ const Index = () => {
     };
   }, []);
 
+  console.log('Index render - loading:', loading, 'user:', user?.email);
+
   // Show loading state
   if (loading) {
+    console.log('Index: showing loading state');
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
@@ -57,14 +61,23 @@ const Index = () => {
 
   // Show auth form if not logged in
   if (!user) {
+    console.log('Index: no user, showing auth form');
     return <AuthForm />;
   }
+
+  console.log('Index: user authenticated, showing main app');
 
   // Migrate localStorage data once when user is loaded
   useEffect(() => {
     if (user?.id && !hasMigratedRef.current && isMountedRef.current) {
+      console.log('Index: starting localStorage migration');
       hasMigratedRef.current = true;
-      migrateLocalStorageData();
+      // Use setTimeout to defer the migration to avoid blocking the render
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          migrateLocalStorageData();
+        }
+      }, 100);
     }
   }, [user?.id, migrateLocalStorageData]);
 

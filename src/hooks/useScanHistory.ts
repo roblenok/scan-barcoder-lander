@@ -10,6 +10,7 @@ export const useScanHistory = () => {
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
   const [loading, setLoading] = useState(false);
   const isMountedRef = useRef(true);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -19,8 +20,12 @@ export const useScanHistory = () => {
 
   // Memoize the loadScanHistory function to prevent infinite loops
   const loadScanHistory = useCallback(async () => {
-    if (!user?.id || !isMountedRef.current) return;
+    if (!user?.id || !isMountedRef.current) {
+      console.log('loadScanHistory: skipping - no user or unmounted');
+      return;
+    }
     
+    console.log('loadScanHistory: starting for user', user.id);
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -47,6 +52,7 @@ export const useScanHistory = () => {
           timestamp: new Date(item.timestamp || item.created_at)
         }));
         setScanHistory(formattedHistory);
+        console.log('loadScanHistory: loaded', formattedHistory.length, 'items');
       }
     } catch (error) {
       console.error('Error loading scan history:', error);
@@ -57,19 +63,29 @@ export const useScanHistory = () => {
     }
   }, [user?.id]);
 
-  // Load scan history from database - only when user.id changes
+  // Load scan history from database - only once when user.id becomes available
   useEffect(() => {
-    if (user?.id && isMountedRef.current) {
+    if (user?.id && isMountedRef.current && !hasLoadedRef.current) {
+      console.log('useEffect: loading scan history for first time');
+      hasLoadedRef.current = true;
       loadScanHistory();
+    } else if (!user?.id) {
+      hasLoadedRef.current = false;
     }
   }, [user?.id, loadScanHistory]);
 
   // Memoize the migrateLocalStorageData function
   const migrateLocalStorageData = useCallback(async () => {
-    if (!user?.id || !isMountedRef.current) return;
+    if (!user?.id || !isMountedRef.current) {
+      console.log('migrateLocalStorageData: skipping - no user or unmounted');
+      return;
+    }
 
     const savedHistory = localStorage.getItem(`scanHistory_${user.id}`);
-    if (!savedHistory) return;
+    if (!savedHistory) {
+      console.log('migrateLocalStorageData: no localStorage data to migrate');
+      return;
+    }
 
     try {
       const parsedHistory = JSON.parse(savedHistory);
@@ -97,6 +113,7 @@ export const useScanHistory = () => {
       localStorage.removeItem(`scanHistory_${user.id}`);
       
       // Reload data from database
+      hasLoadedRef.current = false;
       await loadScanHistory();
       
       toast({
@@ -111,6 +128,7 @@ export const useScanHistory = () => {
   const addScanResult = useCallback(async (result: string, type: string) => {
     if (!user?.id || !isMountedRef.current) return;
 
+    console.log('addScanResult: adding new scan result');
     const newScan: ScanResult = {
       id: Date.now().toString(), // Temporary ID for optimistic update
       content: result,
@@ -191,12 +209,17 @@ export const useScanHistory = () => {
     }
   }, [user?.id]);
 
+  const refreshHistory = useCallback(() => {
+    hasLoadedRef.current = false;
+    loadScanHistory();
+  }, [loadScanHistory]);
+
   return {
     scanHistory,
     loading,
     addScanResult,
     clearHistory,
     migrateLocalStorageData,
-    refreshHistory: loadScanHistory
+    refreshHistory
   };
 };
