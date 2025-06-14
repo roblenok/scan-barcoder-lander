@@ -41,12 +41,11 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onError }) =>
     startScanning();
 
     return () => {
-      if (readerRef.current) {
-        try {
-          readerRef.current.reset();
-        } catch (error) {
-          console.log('Error resetting scanner:', error);
-        }
+      // Stop the video stream properly
+      const video = videoRef.current;
+      if (video && video.srcObject) {
+        const stream = video.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
       }
     };
   }, [onResult, onError]);
