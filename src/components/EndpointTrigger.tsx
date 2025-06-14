@@ -21,13 +21,11 @@ interface EndpointTriggerProps {
 const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints }) => {
   const [loading, setLoading] = useState<string | null>(null);
 
-  // Auto-send to enabled endpoints when barcode changes
+  // Auto-send to the first enabled endpoint when barcode changes
   useEffect(() => {
-    const enabledEndpoints = endpoints.filter(ep => ep.enabled && ep.url);
-    if (barcode && enabledEndpoints.length > 0) {
-      enabledEndpoints.forEach(endpoint => {
-        triggerEndpoint(endpoint);
-      });
+    const enabledEndpoint = endpoints.find(ep => ep.enabled && ep.url);
+    if (barcode && enabledEndpoint) {
+      triggerEndpoint(enabledEndpoint);
     }
   }, [barcode, endpoints]);
 
