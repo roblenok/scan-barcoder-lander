@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, History, Settings, Globe, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,13 +9,14 @@ import ScanHistory from '@/components/ScanHistory';
 import EndpointConfig from '@/components/EndpointConfig';
 import EndpointTrigger from '@/components/EndpointTrigger';
 import { type EncryptedEndpoint } from '@/utils/encryption';
+import { type ScanResult } from '@/types/scan';
 
 const Index = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [activeTab, setActiveTab] = useState('scan');
   const [endpoints, setEndpoints] = useState<EncryptedEndpoint[]>([]);
   const [currentBarcode, setCurrentBarcode] = useState<string>('');
-  const [scanHistory, setScanHistory] = useState<Array<{id: string, content: string, type: string, timestamp: string}>>([]);
+  const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -24,7 +24,13 @@ const Index = () => {
     const saved = localStorage.getItem('lamp_scanner_history');
     if (saved) {
       try {
-        setScanHistory(JSON.parse(saved));
+        const parsedHistory = JSON.parse(saved);
+        // Convert timestamp strings back to Date objects
+        const formattedHistory = parsedHistory.map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp)
+        }));
+        setScanHistory(formattedHistory);
       } catch (error) {
         console.error('Error loading scan history:', error);
       }
@@ -36,18 +42,22 @@ const Index = () => {
   }, []);
 
   const addScanResult = (content: string, type: string) => {
-    const newScan = {
+    const newScan: ScanResult = {
       id: Date.now().toString(),
       content,
       type,
-      timestamp: new Date().toISOString()
+      timestamp: new Date()
     };
     
     const updatedHistory = [newScan, ...scanHistory];
     setScanHistory(updatedHistory);
     
-    // Save to localStorage
-    localStorage.setItem('lamp_scanner_history', JSON.stringify(updatedHistory));
+    // Save to localStorage (convert Date to string for storage)
+    const historyForStorage = updatedHistory.map(item => ({
+      ...item,
+      timestamp: item.timestamp.toISOString()
+    }));
+    localStorage.setItem('lamp_scanner_history', JSON.stringify(historyForStorage));
   };
 
   const clearHistory = () => {
