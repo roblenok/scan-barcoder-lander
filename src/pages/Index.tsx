@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Camera, History, Settings, Globe, Trash2, Zap, LogOut, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +31,13 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState('scan');
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [currentBarcode, setCurrentBarcode] = useState<string>('');
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Show loading state
   if (loading) {
@@ -71,30 +79,55 @@ const Index = () => {
   }
 
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     // Load scan history from localStorage (no database)
     const savedHistory = localStorage.getItem('scanHistory');
     if (savedHistory) {
-      setScanHistory(JSON.parse(savedHistory));
+      try {
+        const parsedHistory = JSON.parse(savedHistory);
+        if (isMountedRef.current) {
+          setScanHistory(parsedHistory);
+        }
+      } catch (error) {
+        console.error('Failed to parse scan history:', error);
+      }
     }
 
     // Load endpoints from localStorage
     const savedEndpoints = localStorage.getItem('customEndpoints');
     if (savedEndpoints) {
-      setEndpoints(JSON.parse(savedEndpoints));
+      try {
+        const parsedEndpoints = JSON.parse(savedEndpoints);
+        if (isMountedRef.current) {
+          setEndpoints(parsedEndpoints);
+        }
+      } catch (error) {
+        console.error('Failed to parse endpoints:', error);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isMountedRef.current) return;
     
     // Load user-specific scan history from localStorage
     const savedHistory = localStorage.getItem(`scanHistory_${user.id}`);
     if (savedHistory) {
-      setScanHistory(JSON.parse(savedHistory));
+      try {
+        const parsedHistory = JSON.parse(savedHistory);
+        if (isMountedRef.current) {
+          setScanHistory(parsedHistory);
+        }
+      } catch (error) {
+        console.error('Failed to parse user scan history:', error);
+      }
     }
   }, [user]);
 
   const handleScanResult = (result: string) => {
+    if (!isMountedRef.current) return;
+    
     console.log('Scan result:', result);
     setCurrentBarcode(result);
     
@@ -135,6 +168,8 @@ const Index = () => {
   };
 
   const clearHistory = () => {
+    if (!isMountedRef.current) return;
+    
     setScanHistory([]);
     localStorage.removeItem(`scanHistory_${user.id}`);
     toast({
@@ -160,18 +195,24 @@ const Index = () => {
   };
 
   const handleSignOut = async () => {
+    if (!isMountedRef.current) return;
+    
     try {
       await signOut();
-      toast({
-        title: "Signed Out",
-        description: "You have been successfully signed out.",
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "Signed Out",
+          description: "You have been successfully signed out.",
+        });
+      }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to sign out. Please try again.",
-        variant: "destructive"
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to sign out. Please try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -241,7 +282,7 @@ const Index = () => {
                       </p>
                     </div>
                     <Button 
-                      onClick={() => setIsScanning(true)} 
+                      onClick={() => isMountedRef.current && setIsScanning(true)} 
                       className="w-full py-6 text-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                       size="lg"
                     >
@@ -255,16 +296,18 @@ const Index = () => {
                       onResult={handleScanResult}
                       onError={(error) => {
                         console.error('Scanner error:', error);
-                        toast({
-                          title: "Scanner Error",
-                          description: "Failed to access camera. Please check permissions.",
-                          variant: "destructive"
-                        });
-                        setIsScanning(false);
+                        if (isMountedRef.current) {
+                          toast({
+                            title: "Scanner Error",
+                            description: "Failed to access camera. Please check permissions.",
+                            variant: "destructive"
+                          });
+                          setIsScanning(false);
+                        }
                       }}
                     />
                     <Button 
-                      onClick={() => setIsScanning(false)} 
+                      onClick={() => isMountedRef.current && setIsScanning(false)} 
                       variant="outline" 
                       className="w-full"
                     >
