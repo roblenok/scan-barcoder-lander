@@ -1,29 +1,49 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Camera, History, Search, Globe, Trash2, Copy, ExternalLink, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Camera, History, Settings, Globe, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import BarcodeScanner from '@/components/BarcodeScanner';
 import ScanHistory from '@/components/ScanHistory';
+import EndpointConfig from '@/components/EndpointConfig';
+import EndpointTrigger from '@/components/EndpointTrigger';
 import { ScanResult } from '@/types/scan';
+
+interface Endpoint {
+  id: string;
+  name: string;
+  url: string;
+  method: 'GET' | 'POST' | 'CURL';
+  enabled: boolean;
+}
 
 const Index = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
   const [activeTab, setActiveTab] = useState('scan');
+  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [currentBarcode, setCurrentBarcode] = useState<string>('');
 
   useEffect(() => {
-    // Load scan history from localStorage
+    // Load scan history from localStorage (no database)
     const savedHistory = localStorage.getItem('scanHistory');
     if (savedHistory) {
       setScanHistory(JSON.parse(savedHistory));
+    }
+
+    // Load endpoints from localStorage
+    const savedEndpoints = localStorage.getItem('customEndpoints');
+    if (savedEndpoints) {
+      setEndpoints(JSON.parse(savedEndpoints));
     }
   }, []);
 
   const handleScanResult = (result: string) => {
     console.log('Scan result:', result);
+    setCurrentBarcode(result);
+    
     const newScan: ScanResult = {
       id: Date.now().toString(),
       content: result,
@@ -36,7 +56,7 @@ const Index = () => {
     localStorage.setItem('scanHistory', JSON.stringify(updatedHistory));
     
     setIsScanning(false);
-    setActiveTab('history');
+    setActiveTab('endpoints');
     
     toast({
       title: "Barcode Scanned Successfully!",
@@ -93,19 +113,27 @@ const Index = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mb-4">
             <Zap className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Scan to Web</h1>
-          <p className="text-gray-600">Fast barcode & QR code scanner</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">LAMP Barcode Scanner</h1>
+          <p className="text-gray-600">Scan & send to custom endpoints</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="scan" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
+            <TabsTrigger value="scan" className="flex items-center gap-1">
               <Camera className="w-4 h-4" />
               Scan
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
+            <TabsTrigger value="endpoints" className="flex items-center gap-1">
+              <Globe className="w-4 h-4" />
+              Send
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-1">
               <History className="w-4 h-4" />
-              History ({scanHistory.length})
+              History
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-1">
+              <Settings className="w-4 h-4" />
+              Config
             </TabsTrigger>
           </TabsList>
 
@@ -125,7 +153,7 @@ const Index = () => {
                         <Camera className="w-12 h-12 text-blue-600" />
                       </div>
                       <p className="text-gray-600 mb-6">
-                        Point your camera at a barcode or QR code to scan
+                        Scan barcodes to send to your LAMP endpoints
                       </p>
                     </div>
                     <Button 
@@ -162,33 +190,19 @@ const Index = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
 
-            {/* Quick Actions */}
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">Supported Formats</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                    QR Code
-                  </div>
-                  <div className="flex items-center gap-2 p-2 bg-indigo-50 rounded-lg">
-                    <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
-                    Code 128
-                  </div>
-                  <div className="flex items-center gap-2 p-2 bg-purple-50 rounded-lg">
-                    <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
-                    EAN-13
-                  </div>
-                  <div className="flex items-center gap-2 p-2 bg-pink-50 rounded-lg">
-                    <div className="w-2 h-2 bg-pink-600 rounded-full"></div>
-                    Data Matrix
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="endpoints" className="space-y-4">
+            {currentBarcode ? (
+              <EndpointTrigger barcode={currentBarcode} endpoints={endpoints} />
+            ) : (
+              <Card className="border-0 shadow-md bg-white/90">
+                <CardContent className="p-6 text-center">
+                  <p className="text-gray-500">No barcode scanned yet.</p>
+                  <p className="text-sm text-gray-400 mt-1">Scan a barcode first to send to endpoints.</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
@@ -212,6 +226,10 @@ const Index = () => {
               onCopy={copyToClipboard}
               onOpenInBrowser={openInBrowser}
             />
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-4">
+            <EndpointConfig onSave={setEndpoints} />
           </TabsContent>
         </Tabs>
       </div>
