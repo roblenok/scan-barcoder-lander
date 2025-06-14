@@ -1,14 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
-import { Camera, History, Settings, Globe, Trash2, Zap } from 'lucide-react';
+import { Camera, History, Settings, Globe, Trash2, Zap, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import BarcodeScanner from '@/components/BarcodeScanner';
 import ScanHistory from '@/components/ScanHistory';
 import EndpointConfig from '@/components/EndpointConfig';
 import EndpointTrigger from '@/components/EndpointTrigger';
+import AuthForm from '@/components/AuthForm';
 import { ScanResult } from '@/types/scan';
 
 interface Endpoint {
@@ -20,11 +21,29 @@ interface Endpoint {
 }
 
 const Index = () => {
+  const { user, loading, signOut } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
   const [activeTab, setActiveTab] = useState('scan');
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [currentBarcode, setCurrentBarcode] = useState<string>('');
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth form if not logged in
+  if (!user) {
+    return <AuthForm />;
+  }
 
   useEffect(() => {
     // Load scan history from localStorage (no database)
@@ -40,6 +59,16 @@ const Index = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    
+    // Load user-specific scan history from localStorage
+    const savedHistory = localStorage.getItem(`scanHistory_${user.id}`);
+    if (savedHistory) {
+      setScanHistory(JSON.parse(savedHistory));
+    }
+  }, [user]);
+
   const handleScanResult = (result: string) => {
     console.log('Scan result:', result);
     setCurrentBarcode(result);
@@ -53,7 +82,7 @@ const Index = () => {
 
     const updatedHistory = [newScan, ...scanHistory];
     setScanHistory(updatedHistory);
-    localStorage.setItem('scanHistory', JSON.stringify(updatedHistory));
+    localStorage.setItem(`scanHistory_${user.id}`, JSON.stringify(updatedHistory));
     
     setIsScanning(false);
     setActiveTab('endpoints');
@@ -82,7 +111,7 @@ const Index = () => {
 
   const clearHistory = () => {
     setScanHistory([]);
-    localStorage.removeItem('scanHistory');
+    localStorage.removeItem(`scanHistory_${user.id}`);
     toast({
       title: "History Cleared",
       description: "All scan history has been deleted.",
@@ -105,16 +134,42 @@ const Index = () => {
     window.open(url, '_blank');
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed Out",
+        description: "You have been successfully signed out.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-6 max-w-md">
-        {/* Header */}
+        {/* Header with user info and logout */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mb-4">
-            <Zap className="w-8 h-8 text-white" />
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full">
+                <Zap className="w-6 h-6 text-white" />
+              </div>
+              <div className="text-left">
+                <h1 className="text-xl font-bold text-gray-900">LAMP Scanner</h1>
+                <p className="text-sm text-gray-600">{user.email}</p>
+              </div>
+            </div>
+            <Button onClick={handleSignOut} variant="outline" size="sm">
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">LAMP Barcode Scanner</h1>
-          <p className="text-gray-600">Scan & send to custom endpoints</p>
+          <p className="text-gray-600">Your secure barcode scanner</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -153,7 +208,7 @@ const Index = () => {
                         <Camera className="w-12 h-12 text-blue-600" />
                       </div>
                       <p className="text-gray-600 mb-6">
-                        Scan barcodes to send to your LAMP endpoints
+                        Scan barcodes to send to your secure endpoints
                       </p>
                     </div>
                     <Button 
