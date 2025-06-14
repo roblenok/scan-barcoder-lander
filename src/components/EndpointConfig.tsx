@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,17 +28,26 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (user && client) {
       loadUserEndpoints();
     } else {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [user, client]);
 
   const loadUserEndpoints = async () => {
-    if (!client) return;
+    if (!client || !isMountedRef.current) return;
     
     try {
       const { data, error } = await client
@@ -48,12 +58,14 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
 
       if (error) throw error;
 
+      if (!isMountedRef.current) return;
+
       if (data && data.length > 0) {
-        const userEndpoints = data.map(ep => ({
+        const userEndpoints: Endpoint[] = data.map(ep => ({
           id: ep.id,
           name: ep.name,
           url: ep.url,
-          method: ep.method,
+          method: ep.method as 'GET' | 'POST' | 'CURL', // Type cast here
           enabled: ep.enabled
         }));
         setEndpoints(userEndpoints);
@@ -71,18 +83,22 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
       }
     } catch (error) {
       console.error('Failed to load endpoints:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load your endpoints. Please check your Supabase configuration.",
-        variant: "destructive"
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to load your endpoints. Please check your Supabase configuration.",
+          variant: "destructive"
+        });
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const saveEndpoints = async (newEndpoints: Endpoint[]) => {
-    if (!user || !client) return;
+    if (!user || !client || !isMountedRef.current) return;
     
     setSaving(true);
     try {
@@ -112,25 +128,33 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
         if (error) throw error;
       }
 
-      setEndpoints(newEndpoints);
-      onSave(newEndpoints);
-      toast({
-        title: "Endpoints Saved",
-        description: "Your secure endpoints have been saved successfully.",
-      });
+      if (isMountedRef.current) {
+        setEndpoints(newEndpoints);
+        onSave(newEndpoints);
+        toast({
+          title: "Endpoints Saved",
+          description: "Your secure endpoints have been saved successfully.",
+        });
+      }
     } catch (error) {
       console.error('Failed to save endpoints:', error);
-      toast({
-        title: "Save Failed",
-        description: "Failed to save your endpoints. Please check your Supabase table setup.",
-        variant: "destructive"
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "Save Failed",
+          description: "Failed to save your endpoints. Please check your Supabase table setup.",
+          variant: "destructive"
+        });
+      }
     } finally {
-      setSaving(false);
+      if (isMountedRef.current) {
+        setSaving(false);
+      }
     }
   };
 
   const updateEndpoint = (id: string, updates: Partial<Endpoint>) => {
+    if (!isMountedRef.current) return;
+    
     const newEndpoints = endpoints.map(ep => 
       ep.id === id ? { ...ep, ...updates } : ep
     );
@@ -173,17 +197,21 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
 
       await fetch(testUrl, options);
       
-      toast({
-        title: "Test Successful",
-        description: `Request sent to ${endpoint.name}. Check your LAMP server logs.`,
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "Test Successful",
+          description: `Request sent to ${endpoint.name}. Check your LAMP server logs.`,
+        });
+      }
     } catch (error) {
       console.error('Test failed:', error);
-      toast({
-        title: "Test Failed",
-        description: "Failed to send test request. Check the URL and try again.",
-        variant: "destructive"
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "Test Failed",
+          description: "Failed to send test request. Check the URL and try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
