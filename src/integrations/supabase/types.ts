@@ -9,33 +9,57 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      user_endpoints: {
+      profiles: {
         Row: {
           created_at: string | null
-          enabled: boolean
+          email: string | null
           id: string
-          method: string
-          name: string
-          url: string
-          user_id: string
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
-          enabled?: boolean
+          email?: string | null
           id: string
-          method: string
-          name: string
-          url: string
-          user_id?: string
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
-          enabled?: boolean
+          email?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_endpoints: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          method: string
+          name: string
+          updated_at: string | null
+          url: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          method: string
+          name: string
+          updated_at?: string | null
+          url: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
           id?: string
           method?: string
           name?: string
+          updated_at?: string | null
           url?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }

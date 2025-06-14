@@ -51,62 +51,10 @@ const Index = () => {
     );
   }
 
-  // Show Supabase config if not configured
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="container mx-auto px-4 py-6 max-w-md">
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mb-4">
-              <Zap className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">LAMP Scanner</h1>
-            <p className="text-gray-600">Setup your private database connection</p>
-          </div>
-          
-          <SupabaseConfig 
-            onConfigSave={updateConfig}
-            currentConfig={config}
-          />
-        </div>
-      </div>
-    );
-  }
-
   // Show auth form if not logged in
   if (!user) {
     return <AuthForm />;
   }
-
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    
-    // Load scan history from localStorage (no database)
-    const savedHistory = localStorage.getItem('scanHistory');
-    if (savedHistory) {
-      try {
-        const parsedHistory = JSON.parse(savedHistory);
-        if (isMountedRef.current) {
-          setScanHistory(parsedHistory);
-        }
-      } catch (error) {
-        console.error('Failed to parse scan history:', error);
-      }
-    }
-
-    // Load endpoints from localStorage
-    const savedEndpoints = localStorage.getItem('customEndpoints');
-    if (savedEndpoints) {
-      try {
-        const parsedEndpoints = JSON.parse(savedEndpoints);
-        if (isMountedRef.current) {
-          setEndpoints(parsedEndpoints);
-        }
-      } catch (error) {
-        console.error('Failed to parse endpoints:', error);
-      }
-    }
-  }, []);
 
   useEffect(() => {
     if (!user || !isMountedRef.current) return;
@@ -126,7 +74,7 @@ const Index = () => {
   }, [user]);
 
   const handleScanResult = (result: string) => {
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current || !user) return;
     
     console.log('Scan result:', result);
     setCurrentBarcode(result);
@@ -168,7 +116,7 @@ const Index = () => {
   };
 
   const clearHistory = () => {
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current || !user) return;
     
     setScanHistory([]);
     localStorage.removeItem(`scanHistory_${user.id}`);
@@ -239,7 +187,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="scan" className="flex items-center gap-1">
               <Camera className="w-4 h-4" />
               Scan
@@ -255,10 +203,6 @@ const Index = () => {
             <TabsTrigger value="settings" className="flex items-center gap-1">
               <Settings className="w-4 h-4" />
               Config
-            </TabsTrigger>
-            <TabsTrigger value="database" className="flex items-center gap-1">
-              <Database className="w-4 h-4" />
-              DB
             </TabsTrigger>
           </TabsList>
 
@@ -357,13 +301,6 @@ const Index = () => {
 
           <TabsContent value="settings" className="space-y-4">
             <EndpointConfig onSave={setEndpoints} />
-          </TabsContent>
-
-          <TabsContent value="database" className="space-y-4">
-            <SupabaseConfig 
-              onConfigSave={updateConfig}
-              currentConfig={config}
-            />
           </TabsContent>
         </Tabs>
       </div>

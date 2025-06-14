@@ -1,10 +1,11 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { User } from '@supabase/supabase-js';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -24,6 +25,7 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const isMountedRef = useRef(true);
 
@@ -38,18 +40,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       try {
-        // Get initial session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (isMountedRef.current) {
-          setUser(session?.user ?? null);
-          setLoading(false);
-        }
-
-        // Listen for auth changes
+        // Set up auth state listener FIRST
         const { data } = supabase.auth.onAuthStateChange(
           (event, session) => {
+            console.log('Auth state change:', event, session?.user?.email);
             if (isMountedRef.current) {
+              setSession(session);
               setUser(session?.user ?? null);
               setLoading(false);
             }
@@ -57,6 +53,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
         
         subscription = data.subscription;
+
+        // THEN check for existing session
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        
+        if (isMountedRef.current) {
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          setLoading(false);
+        }
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (isMountedRef.current) {
@@ -75,29 +80,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    console.log('Attempting sign in for:', email);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    if (error) throw error;
+    if (error) {
+      console.error('Sign in error:', error);
+      throw error;
+    }
   };
 
   const signUp = async (email: string, password: string) => {
+    console.log('Attempting sign up for:', email);
+    const redirectUrl = `${window.location.origin}/`;
+    
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: redirectUrl
+      }
     });
-    if (error) throw error;
+    if (error) {
+      console.error('Sign up error:', error);
+      throw error;
+    }
   };
 
   const signOut = async () => {
+    console.log('Attempting sign out');
     const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    if (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
   };
 
   return (
     <AuthContext.Provider value={{ 
       user, 
+      session,
       loading, 
       signIn, 
       signUp, 
