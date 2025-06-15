@@ -254,7 +254,7 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
                     <Label htmlFor={`method-${endpoint.id}`}>Method</Label>
                     <Select
                       value={endpoint.method}
-                      onValueChange={(value: 'GET' | 'POST' | 'CURL') => 
+                      onValueChange={(value: 'GET' | 'POST') => 
                         updateEndpoint(endpoint.id, { method: value })
                       }
                     >
@@ -264,7 +264,6 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
                       <SelectContent>
                         <SelectItem value="GET">GET</SelectItem>
                         <SelectItem value="POST">POST</SelectItem>
-                        <SelectItem value="CURL">CURL</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -292,9 +291,10 @@ const EndpointConfig: React.FC<EndpointConfigProps> = ({ onSave }) => {
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
             <div className="text-sm">
-              <p className="font-medium text-amber-800">Security Notice</p>
+              <p className="font-medium text-amber-800">Usage Instructions</p>
               <p className="text-amber-700 mt-1">
-                Endpoints are AES encrypted in localStorage. URLs are validated to prevent SSRF attacks.
+                <strong>GET:</strong> Use $upc, $var, $user in URL (e.g., /scan.php?code=$upc)<br/>
+                <strong>POST:</strong> Sends JSON with upc, var, user fields in request body
               </p>
             </div>
           </div>

@@ -35,42 +35,44 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
       };
 
       let url = endpoint.url;
-      // Replace variables in URL for GET requests
+      const options: RequestInit = {
+        method: endpoint.method
+      };
+
       if (endpoint.method === 'GET') {
+        // Replace variables in URL for GET requests
         url = url.replace(/\$upc/g, encodeURIComponent(data.upc));
         url = url.replace(/\$var/g, encodeURIComponent(data.var));
         url = url.replace(/\$user/g, encodeURIComponent(data.user));
-      }
-
-      const options: RequestInit = {
-        method: endpoint.method === 'CURL' ? 'POST' : endpoint.method,
-        mode: 'no-cors' // Handle CORS for LAMP stack
-      };
-
-      // For POST and CURL, send data in body
-      if (endpoint.method === 'POST' || endpoint.method === 'CURL') {
+        
+        // Open GET requests in new tab
+        window.open(url, '_blank');
+      } else if (endpoint.method === 'POST') {
+        // For POST, send data in body and don't open in browser
         options.headers = {
           'Content-Type': 'application/json'
         };
         options.body = JSON.stringify(data);
+        
+        console.log(`Sending POST to ${endpoint.name}:`, { url, data });
+        
+        const response = await fetch(url, options);
+        console.log('POST response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
       }
 
-      console.log(`Triggering ${endpoint.name}:`, { url, method: endpoint.method, data });
-      
-      await fetch(url, options);
-      
-      // Open endpoint URL in new tab after successful submission
-      window.open(url, '_blank');
-      
       toast({
         title: "Request Sent",
-        description: `Successfully sent data to ${endpoint.name}`,
+        description: `Successfully sent ${endpoint.method} request to ${endpoint.name}`,
       });
     } catch (error) {
       console.error(`Failed to trigger ${endpoint.name}:`, error);
       toast({
         title: "Request Failed",
-        description: `Failed to send data to ${endpoint.name}`,
+        description: `Failed to send ${endpoint.method} request to ${endpoint.name}`,
         variant: "destructive"
       });
     } finally {
@@ -117,7 +119,7 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}
-                  Send to {endpoint.name}
+                  Send {endpoint.method} to {endpoint.name}
                 </Button>
               ))}
             </div>
@@ -125,14 +127,15 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-md bg-green-50/90">
+      <Card className="border-0 shadow-md bg-blue-50/90">
         <CardContent className="p-4">
           <div className="flex items-start gap-2">
-            <Shield className="w-5 h-5 text-green-600 mt-0.5" />
+            <Shield className="w-5 h-5 text-blue-600 mt-0.5" />
             <div className="text-sm">
-              <p className="font-medium text-green-800">Secure & Local</p>
-              <p className="text-green-700 mt-1">
-                Your endpoints are encrypted locally. Requests sent with no-cors mode for LAMP compatibility.
+              <p className="font-medium text-blue-800">Variables Available</p>
+              <p className="text-blue-700 mt-1">
+                <strong>GET:</strong> Use $upc, $var, $user in URL<br/>
+                <strong>POST:</strong> JSON body with upc, var, user fields
               </p>
             </div>
           </div>

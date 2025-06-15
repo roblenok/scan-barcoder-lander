@@ -8,7 +8,7 @@ export interface EncryptedEndpoint {
   id: string;
   name: string;
   url: string;
-  method: 'GET' | 'POST' | 'CURL';
+  method: 'GET' | 'POST';
   enabled: boolean;
 }
 
