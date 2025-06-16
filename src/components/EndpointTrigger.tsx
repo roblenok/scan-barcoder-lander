@@ -47,8 +47,8 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         url = url.replace(/\$var/g, encodeURIComponent(data.var));
         url = url.replace(/\$user/g, encodeURIComponent(data.user));
         
-        // Open GET requests in new tab
-        window.open(url, '_blank');
+        // Open GET requests in same page
+        window.location.href = url;
       } else if (endpoint.method === 'POST') {
         // For POST, send data in body and don't open in browser
         options.headers = {
