@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Send, Loader2, AlertTriangle, Shield } from 'lucide-react';
@@ -13,11 +13,13 @@ interface EndpointTriggerProps {
 
 const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints }) => {
   const [loading, setLoading] = useState<string | null>(null);
+  const processedBarcodeRef = useRef<string | null>(null);
 
   // Auto-send to the first enabled endpoint when barcode changes
   useEffect(() => {
     const enabledEndpoint = endpoints.find(ep => ep.enabled && ep.url);
-    if (barcode && enabledEndpoint) {
+    if (barcode && enabledEndpoint && processedBarcodeRef.current !== barcode) {
+      processedBarcodeRef.current = barcode;
       triggerEndpoint(enabledEndpoint);
     }
   }, [barcode, endpoints]);
