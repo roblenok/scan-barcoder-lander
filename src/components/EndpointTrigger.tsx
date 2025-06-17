@@ -13,20 +13,41 @@ interface EndpointTriggerProps {
 
 const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints }) => {
   const [loading, setLoading] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const processedBarcodeRef = useRef<string | null>(null);
 
   // Auto-send to the first enabled endpoint when barcode changes
   useEffect(() => {
-    const enabledEndpoint = endpoints.find(ep => ep.enabled && ep.url);
-    if (barcode && enabledEndpoint && processedBarcodeRef.current !== barcode) {
-      processedBarcodeRef.current = barcode;
-      triggerEndpoint(enabledEndpoint);
+    console.log('EndpointTrigger useEffect triggered:', { barcode, processedBarcode: processedBarcodeRef.current, isProcessing });
+    
+    if (!barcode || isProcessing || processedBarcodeRef.current === barcode) {
+      console.log('Skipping trigger - conditions not met');
+      return;
     }
-  }, [barcode, endpoints]);
+
+    const enabledEndpoint = endpoints.find(ep => ep.enabled && ep.url);
+    if (!enabledEndpoint) {
+      console.log('No enabled endpoint found');
+      return;
+    }
+
+    console.log('Auto-triggering endpoint:', enabledEndpoint.name);
+    processedBarcodeRef.current = barcode;
+    setIsProcessing(true);
+    
+    // Small delay to ensure state is set before triggering
+    setTimeout(() => {
+      triggerEndpoint(enabledEndpoint);
+    }, 100);
+  }, [barcode]); // Only depend on barcode, not endpoints
 
   const triggerEndpoint = async (endpoint: EncryptedEndpoint) => {
-    if (!endpoint.url) return;
+    if (!endpoint.url || isProcessing) {
+      console.log('Trigger blocked - no URL or already processing');
+      return;
+    }
 
+    console.log('Starting endpoint trigger:', endpoint.name);
     setLoading(endpoint.id);
 
     try {
@@ -47,8 +68,12 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         url = url.replace(/\$var/g, encodeURIComponent(data.var));
         url = url.replace(/\$user/g, encodeURIComponent(data.user));
         
-        // Open GET requests in same page
+        console.log('Redirecting to GET URL:', url);
+        
+        // Immediate redirection for GET requests
         window.location.href = url;
+        return; // Don't show success toast for GET as we're leaving the page
+        
       } else if (endpoint.method === 'POST') {
         // For POST, send data in body and don't open in browser
         options.headers = {
@@ -64,12 +89,12 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-      }
 
-      toast({
-        title: "Request Sent",
-        description: `Successfully sent ${endpoint.method} request to ${endpoint.name}`,
-      });
+        toast({
+          title: "Request Sent",
+          description: `Successfully sent POST request to ${endpoint.name}`,
+        });
+      }
     } catch (error) {
       console.error(`Failed to trigger ${endpoint.name}:`, error);
       toast({
@@ -79,7 +104,19 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
       });
     } finally {
       setLoading(null);
+      setIsProcessing(false);
     }
+  };
+
+  const handleManualTrigger = (endpoint: EncryptedEndpoint) => {
+    if (isProcessing) {
+      console.log('Manual trigger blocked - already processing');
+      return;
+    }
+    
+    console.log('Manual trigger for:', endpoint.name);
+    setIsProcessing(true);
+    triggerEndpoint(endpoint);
   };
 
   const enabledEndpoints = endpoints.filter(ep => ep.enabled && ep.url);
@@ -111,10 +148,10 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
               {enabledEndpoints.map((endpoint) => (
                 <Button
                   key={endpoint.id}
-                  onClick={() => triggerEndpoint(endpoint)}
+                  onClick={() => handleManualTrigger(endpoint)}
                   variant="outline"
                   className="w-full justify-start"
-                  disabled={loading !== null}
+                  disabled={loading !== null || isProcessing}
                 >
                   {loading === endpoint.id ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
