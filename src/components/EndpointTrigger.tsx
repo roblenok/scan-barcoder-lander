@@ -14,40 +14,63 @@ interface EndpointTriggerProps {
 const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints }) => {
   const [loading, setLoading] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const processedBarcodeRef = useRef<string | null>(null);
+  const [previousBarcode, setPreviousBarcode] = useState<string | null>(null);
+  const endpointsRef = useRef<EncryptedEndpoint[]>(endpoints);
+  
+  // Update the ref when endpoints change
+  useEffect(() => {
+    console.log('EndpointTrigger: Endpoints updated:', endpoints.length);
+    endpointsRef.current = endpoints;
+  }, [endpoints]);
 
   // Auto-send to the first enabled endpoint when barcode changes
   useEffect(() => {
-    console.log('EndpointTrigger useEffect triggered:', { barcode, processedBarcode: processedBarcodeRef.current, isProcessing });
+    console.log('EndpointTrigger: Barcode check triggered:', { 
+      barcode, 
+      previousBarcode, 
+      isProcessing,
+      hasEndpoints: endpointsRef.current.length > 0
+    });
     
-    if (!barcode || isProcessing || processedBarcodeRef.current === barcode) {
-      console.log('Skipping trigger - conditions not met');
+    // Skip if no barcode, already processing, or same barcode
+    if (!barcode || isProcessing || previousBarcode === barcode) {
+      if (!barcode) console.log('EndpointTrigger: No barcode provided');
+      if (isProcessing) console.log('EndpointTrigger: Already processing a request');
+      if (previousBarcode === barcode) console.log('EndpointTrigger: Same barcode detected');
       return;
     }
 
-    const enabledEndpoint = endpoints.find(ep => ep.enabled && ep.url);
-    if (!enabledEndpoint) {
-      console.log('No enabled endpoint found');
+    // Find an enabled endpoint with a valid URL
+    const enabledEndpoints = endpointsRef.current.filter(ep => ep.enabled && ep.url);
+    console.log('EndpointTrigger: Available enabled endpoints:', enabledEndpoints.length);
+    
+    if (enabledEndpoints.length === 0) {
+      console.log('EndpointTrigger: No enabled endpoints available');
       return;
     }
 
-    console.log('Auto-triggering endpoint:', enabledEndpoint.name);
-    processedBarcodeRef.current = barcode;
+    // Update state before triggering
+    setPreviousBarcode(barcode);
     setIsProcessing(true);
     
-    // Small delay to ensure state is set before triggering
+    console.log('EndpointTrigger: Auto-triggering first enabled endpoint:', enabledEndpoints[0].name);
+    
+    // Small delay to ensure state is updated before triggering
     setTimeout(() => {
-      triggerEndpoint(enabledEndpoint);
-    }, 100);
-  }, [barcode]); // Only depend on barcode, not endpoints
+      triggerEndpoint(enabledEndpoints[0]);
+    }, 50);
+    
+  }, [barcode]);
 
   const triggerEndpoint = async (endpoint: EncryptedEndpoint) => {
-    if (!endpoint.url || isProcessing) {
-      console.log('Trigger blocked - no URL or already processing');
+    console.log('EndpointTrigger: Triggering endpoint:', endpoint.name);
+    
+    if (!endpoint.url) {
+      console.error('EndpointTrigger: Missing URL for endpoint:', endpoint.name);
+      setIsProcessing(false);
       return;
     }
 
-    console.log('Starting endpoint trigger:', endpoint.name);
     setLoading(endpoint.id);
 
     try {
@@ -68,11 +91,12 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         url = url.replace(/\$var/g, encodeURIComponent(data.var));
         url = url.replace(/\$user/g, encodeURIComponent(data.user));
         
-        console.log('Redirecting to GET URL:', url);
+        console.log('EndpointTrigger: Redirecting to GET URL:', url);
         
         // Immediate redirection for GET requests
         window.location.href = url;
-        return; // Don't show success toast for GET as we're leaving the page
+        // Don't reset state here as we're navigating away
+        return;
         
       } else if (endpoint.method === 'POST') {
         // For POST, send data in body and don't open in browser
@@ -81,10 +105,10 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         };
         options.body = JSON.stringify(data);
         
-        console.log(`Sending POST to ${endpoint.name}:`, { url, data });
+        console.log('EndpointTrigger: Sending POST to:', url, data);
         
         const response = await fetch(url, options);
-        console.log('POST response status:', response.status);
+        console.log('EndpointTrigger: POST response status:', response.status);
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -96,7 +120,7 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
         });
       }
     } catch (error) {
-      console.error(`Failed to trigger ${endpoint.name}:`, error);
+      console.error('EndpointTrigger: Failed to trigger endpoint:', error);
       toast({
         title: "Request Failed",
         description: `Failed to send ${endpoint.method} request to ${endpoint.name}`,
@@ -110,11 +134,11 @@ const EndpointTrigger: React.FC<EndpointTriggerProps> = ({ barcode, endpoints })
 
   const handleManualTrigger = (endpoint: EncryptedEndpoint) => {
     if (isProcessing) {
-      console.log('Manual trigger blocked - already processing');
+      console.log('EndpointTrigger: Manual trigger blocked - already processing');
       return;
     }
     
-    console.log('Manual trigger for:', endpoint.name);
+    console.log('EndpointTrigger: Manual trigger for:', endpoint.name);
     setIsProcessing(true);
     triggerEndpoint(endpoint);
   };

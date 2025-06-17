@@ -8,22 +8,48 @@ import BarcodeScanner from '@/components/BarcodeScanner';
 import ScanHistory from '@/components/ScanHistory';
 import EndpointConfig from '@/components/EndpointConfig';
 import EndpointTrigger from '@/components/EndpointTrigger';
-import { type EncryptedEndpoint } from '@/utils/encryption';
+import { type EncryptedEndpoint, loadEncryptedEndpoints } from '@/utils/encryption';
 import { type ScanResult } from '@/types/scan';
 
 const Index = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [activeTab, setActiveTab] = useState('scan');
   const [endpoints, setEndpoints] = useState<EncryptedEndpoint[]>([]);
+  const [endpointsLoaded, setEndpointsLoaded] = useState(false);
   const [currentBarcode, setCurrentBarcode] = useState<string>('');
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
   const isMountedRef = useRef(true);
 
+  // Load endpoints and scan history when component mounts
   useEffect(() => {
+    console.log('Index: Loading initial data');
+    
+    // Load endpoints first
+    try {
+      const loadedEndpoints = loadEncryptedEndpoints();
+      console.log('Index: Loaded endpoints:', loadedEndpoints.length);
+      setEndpoints(loadedEndpoints);
+      setEndpointsLoaded(true);
+      
+      if (loadedEndpoints.length > 0) {
+        console.log('Index: Endpoints configured successfully');
+      } else {
+        console.log('Index: No endpoints configured yet');
+      }
+    } catch (error) {
+      console.error('Index: Error loading endpoints:', error);
+      toast({
+        title: "Error Loading Endpoints",
+        description: "Failed to load encrypted endpoints. Check settings tab.",
+        variant: "destructive"
+      });
+      setEndpointsLoaded(true); // Still mark as loaded to avoid blocking the UI
+    }
+    
     // Load scan history from localStorage
-    const saved = localStorage.getItem('lamp_scanner_history');
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem('lamp_scanner_history');
+      if (saved) {
         const parsedHistory = JSON.parse(saved);
         // Convert timestamp strings back to Date objects
         const formattedHistory = parsedHistory.map((item: any) => ({
@@ -31,9 +57,10 @@ const Index = () => {
           timestamp: new Date(item.timestamp)
         }));
         setScanHistory(formattedHistory);
-      } catch (error) {
-        console.error('Error loading scan history:', error);
+        console.log('Index: Loaded scan history:', formattedHistory.length);
       }
+    } catch (error) {
+      console.error('Index: Error loading scan history:', error);
     }
 
     return () => {
@@ -72,7 +99,7 @@ const Index = () => {
   const handleScanResult = async (result: string) => {
     if (!isMountedRef.current) return;
     
-    console.log('Scan result:', result);
+    console.log('Index: Scan result received:', result);
     setCurrentBarcode(result);
     
     const detectedType = detectBarcodeType(result);
@@ -85,6 +112,8 @@ const Index = () => {
       title: "Barcode Scanned Successfully!",
       description: `Found: ${result.substring(0, 50)}${result.length > 50 ? '...' : ''}`,
     });
+    
+    console.log('Index: Endpoints available for trigger:', endpoints.length);
   };
 
   const detectBarcodeType = (content: string): string => {
@@ -117,6 +146,13 @@ const Index = () => {
       url = `https://www.google.com/search?q=${encodeURIComponent(content)}`;
     }
     window.open(url, '_blank');
+  };
+
+  // Handler for endpoint updates from EndpointConfig
+  const handleEndpointUpdate = (updatedEndpoints: EncryptedEndpoint[]) => {
+    console.log('Index: Endpoints updated from config:', updatedEndpoints.length);
+    setEndpoints(updatedEndpoints);
+    setEndpointsLoaded(true);
   };
 
   return (
@@ -214,7 +250,14 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="endpoints" className="space-y-4">
-            {currentBarcode ? (
+            {!endpointsLoaded ? (
+              <Card className="border-0 shadow-md bg-white/90">
+                <CardContent className="p-6 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-gray-500">Loading endpoints...</p>
+                </CardContent>
+              </Card>
+            ) : currentBarcode ? (
               <EndpointTrigger barcode={currentBarcode} endpoints={endpoints} />
             ) : (
               <Card className="border-0 shadow-md bg-white/90">
@@ -250,7 +293,7 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">
-            <EndpointConfig onSave={setEndpoints} />
+            <EndpointConfig onSave={handleEndpointUpdate} />
           </TabsContent>
         </Tabs>
       </div>
